@@ -1,4 +1,4 @@
-# 🔧 Real-Time Chat Application – Backend Assignment (Kuvaka Tech)
+# 🔧 Real-Time Chat Application
 
 This is a simple real-time chat application built using **Node.js's native `net` module**, implementing both the server and client with **no external libraries**, as per the assignment requirements.
 
