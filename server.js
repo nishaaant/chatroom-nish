@@ -1,6 +1,7 @@
 const net = require("net");
 
-const PORT = 1608;
+// Get port from environment variable or use default
+const PORT = process.env.PORT || 1608;
 let clients = [];
 
 // Message types for different notifications
@@ -45,7 +46,16 @@ Available commands:
   }
 };
 
+// Health check response
+const HEALTH_CHECK_RESPONSE = 'OK';
+
 const server = net.createServer((socket) => {
+  // Handle health check connections
+  if (isHealthCheck(socket)) {
+    handleHealthCheck(socket);
+    return;
+  }
+
   //Initialize client object
   let client = {
     socket,
@@ -127,6 +137,17 @@ const server = net.createServer((socket) => {
     removeClient(client);
   });
 });
+
+function isHealthCheck(socket) {
+  // Check if the connection is from a health check
+  // This is a simple check - you might want to make it more sophisticated
+  return socket.remoteAddress === '::1' || socket.remoteAddress === '127.0.0.1';
+}
+
+function handleHealthCheck(socket) {
+  socket.write(HEALTH_CHECK_RESPONSE);
+  socket.end();
+}
 
 function removeClient(client) {
   const index = clients.indexOf(client);
@@ -216,7 +237,13 @@ function sendToClient(socket, type, message) {
   }
 }
 
-server.listen(PORT, () => {
+// Error handling for the server
+server.on('error', (err) => {
+  console.error('Server error:', err);
+});
+
+// Start the server
+server.listen(PORT, '0.0.0.0', () => {
   console.log(`Chat server started on port ${PORT}`);
   console.log(`Waiting for connections...`);
 });

@@ -1,0 +1,12 @@
+{
+  "name": "chatroom-nish",
+  "version": "1.0.0",
+  "description": "A real-time chat application using Node.js",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  }
+} 
