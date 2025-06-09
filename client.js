@@ -5,17 +5,23 @@ const HOST = "127.0.0.1";
 const PORT = 1608;
 
 let isNameSet = false;
+let isTyping = false;
 
-//Creating readline interface with custom prompt
+// Creating readline interface with custom prompt
 const rl = readline.createInterface({
   input: process.stdin,
   output: process.stdout
 });
 
-//Creating socket connection
+// Creating socket connection
 const client = new net.Socket();
 
+// Clear screen function
+function clearScreen() {
+  process.stdout.write('\x1Bc');
+}
 
+// Handle connection
 client.connect(PORT, HOST, () => {
   console.log(`Connected to chat server at ${HOST}:${PORT}`);
 });
@@ -33,6 +39,10 @@ client.on("data", (data) => {
       rl.prompt();
     }
   } else {
+    // Clear the current line if user is typing
+    if (isTyping) {
+      process.stdout.write('\r\x1B[K');
+    }
     process.stdout.write(message);
     rl.prompt();
   }
@@ -52,7 +62,7 @@ client.on("error", (err) => {
   process.exit(1);
 });
 
-
+// Handle user input
 rl.on("line", (line) => {
   if (line.trim()) {
     client.write(line);
@@ -62,8 +72,31 @@ rl.on("line", (line) => {
   }
 });
 
-// Handling Ctrl+C issue here
+// Handle typing state
 rl.on("SIGINT", () => {
   console.log("\nDisconnecting from server...");
   client.end();
+});
+
+// Handle typing indicator
+process.stdin.on('keypress', (str, key) => {
+  if (isNameSet && !isTyping) {
+    isTyping = true;
+  }
+});
+
+// Handle enter key
+process.stdin.on('keypress', (str, key) => {
+  if (key.name === 'enter') {
+    isTyping = false;
+  }
+});
+
+// Enable raw mode for keypress events
+process.stdin.setRawMode(true);
+process.stdin.resume();
+process.stdin.on('data', (data) => {
+  if (data[0] === 3) { // Ctrl+C
+    process.emit('SIGINT');
+  }
 });

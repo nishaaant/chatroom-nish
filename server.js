@@ -3,12 +3,46 @@ const net = require("net");
 const PORT = 1608;
 let clients = [];
 
-//Message types for different notifications here :
+// Message types for different notifications
 const MESSAGE_TYPES = {
   WELCOME: 'WELCOME',
   JOIN: 'JOIN',
   LEAVE: 'LEAVE',
-  CHAT: 'CHAT'
+  CHAT: 'CHAT',
+  ERROR: 'ERROR',
+  SYSTEM: 'SYSTEM'
+};
+
+// Rate limiting configuration
+const RATE_LIMIT = {
+  windowMs: 1000, // 1 second window
+  maxMessages: 5  // max messages per window
+};
+
+// Client message tracking for rate limiting
+const messageCounts = new Map();
+
+// Command handlers
+const commands = {
+  '/help': (client) => {
+    const helpText = `
+Available commands:
+/help - Show this help message
+/users - List all connected users
+/clear - Clear your chat window
+    `.trim();
+    sendToClient(client.socket, MESSAGE_TYPES.SYSTEM, helpText);
+  },
+  '/users': (client) => {
+    const userList = clients
+      .filter(c => c.name)
+      .map(c => c.name)
+      .join(', ');
+    sendToClient(client.socket, MESSAGE_TYPES.SYSTEM, `Connected users: ${userList}`);
+  },
+  '/clear': (client) => {
+    sendToClient(client.socket, MESSAGE_TYPES.SYSTEM, '\x1Bc'); // ANSI clear screen
+  }
 };
 
 const server = net.createServer((socket) => {
@@ -31,23 +65,52 @@ const server = net.createServer((socket) => {
       const message = data.toString().trim();
       
       if (!client.name) {
-        //Name Validation is done here
+        // Name validation
         if (message.length < 2) {
           socket.write("\nName must be at least 2 characters long. Enter your name: ");
+          return;
+        }
+        if (message.length > 20) {
+          socket.write("\nName must be less than 20 characters. Enter your name: ");
+          return;
+        }
+        if (clients.some(c => c.name === message)) {
+          socket.write("\nName is already taken. Enter your name: ");
           return;
         }
         client.name = message;
         sendToClient(socket, MESSAGE_TYPES.WELCOME, `\nWelcome, ${client.name}!`);
         broadcast(MESSAGE_TYPES.JOIN, `${client.name} has joined the chat.`, socket);
+        commands['/help'](client);
+        return;
+      }
+
+      // Handle commands
+      if (message.startsWith('/')) {
+        const command = commands[message.split(' ')[0]];
+        if (command) {
+          command(client);
+        } else {
+          sendToClient(socket, MESSAGE_TYPES.ERROR, "Unknown command. Type /help for available commands.");
+        }
         return;
       }
 
       // Handle chat message
       if (message.length > 0) {
+        if (isRateLimited(client)) {
+          sendToClient(socket, MESSAGE_TYPES.ERROR, "You are sending messages too quickly. Please wait a moment.");
+          return;
+        }
+        if (message.length > 500) {
+          sendToClient(socket, MESSAGE_TYPES.ERROR, "Message too long. Maximum length is 500 characters.");
+          return;
+        }
         broadcast(MESSAGE_TYPES.CHAT, message, socket, client.name);
       }
     } catch (err) {
       console.error(`Error processing message from ${client.name || client.address}: ${err.message}`);
+      sendToClient(socket, MESSAGE_TYPES.ERROR, "An error occurred while processing your message.");
     }
   });
 
@@ -100,17 +163,46 @@ function broadcast(type, message, senderSocket, senderName = null) {
   }
 }
 
+function isRateLimited(client) {
+  const now = Date.now();
+  const clientKey = client.address;
+  
+  if (!messageCounts.has(clientKey)) {
+    messageCounts.set(clientKey, { count: 0, windowStart: now });
+    return false;
+  }
+
+  const stats = messageCounts.get(clientKey);
+  
+  if (now - stats.windowStart > RATE_LIMIT.windowMs) {
+    stats.count = 0;
+    stats.windowStart = now;
+    return false;
+  }
+
+  stats.count++;
+  return stats.count > RATE_LIMIT.maxMessages;
+}
+
 function formatMessage(type, message, senderName = null, isSender = false) {
+  const timestamp = new Date().toLocaleTimeString();
+  
   switch (type) {
     case MESSAGE_TYPES.WELCOME:
       return `${message}\n`;
     case MESSAGE_TYPES.JOIN:
     case MESSAGE_TYPES.LEAVE:
-      return `${message}\n`;
+      return `[${timestamp}] ${message}\n`;
     case MESSAGE_TYPES.CHAT:
-      return isSender ? `You: ${message}\n` : `${senderName}: ${message}\n`;
+      return isSender 
+        ? `[${timestamp}] You: ${message}\n` 
+        : `[${timestamp}] ${senderName}: ${message}\n`;
+    case MESSAGE_TYPES.ERROR:
+      return `[${timestamp}] Error: ${message}\n`;
+    case MESSAGE_TYPES.SYSTEM:
+      return `[${timestamp}] System: ${message}\n`;
     default:
-      return `${message}\n`;
+      return `[${timestamp}] ${message}\n`;
   }
 }
 

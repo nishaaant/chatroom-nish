@@ -117,3 +117,24 @@ const HOST = "YOUR_SERVER_PUBLIC_IP";
 ```
 
 Then rerun the client.
+
+---
+
+## 🎮 Available Commands
+
+The chat supports several built-in commands:
+- `/help` - Show available commands
+- `/users` - List all connected users
+- `/clear` - Clear your chat window
+
+---
+
+## 🔜 Future Improvements
+
+- Add message persistence (database)
+- Implement private messaging
+- Add file sharing capabilities
+- Add user authentication
+- Add message encryption
+- Add support for emojis and rich text
+- Add support for multiple chat rooms
