@@ -1,7 +1,9 @@
 const net = require("net");
 const readline = require("readline");
 
-const HOST = "127.0.0.1";
+const HOST = "https://chatroom-nish.onrender.com"; //deployment link
+//comment out the following code to run on localhost
+// const HOST = "127.0.0.1";
 const PORT = 1608;
 
 let isNameSet = false;
